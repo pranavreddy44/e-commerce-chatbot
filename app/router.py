@@ -85,6 +85,11 @@ small_talk = Route(
 # Router
 router = SemanticRouter(routes=[faq, sql, small_talk], encoder=encoder)
 
+# Initialize the router index - THIS IS THE KEY FIX
+print("Initializing semantic router...")
+router.fit()
+print("Semantic router initialized successfully!")
+
 if __name__ == "__main__":
     print("FAQ →", router("What is your policy on defective product?").name)
     print("SQL →", router("Pink Puma shoes in price range 1000 to 5000").name)
