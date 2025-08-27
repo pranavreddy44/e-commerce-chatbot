@@ -17,7 +17,7 @@ ef = embedding_functions.SentenceTransformerEmbeddingFunction(
 
 faqs_path=Path(__file__).parent/"resources/faq_data.csv"
 chroma_client = chromadb.Client()
-groq_client = Groq()
+groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 collection_name_faq = 'faqs'
 
 
