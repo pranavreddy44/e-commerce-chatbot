@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+
+# Data/artifacts (keep only what you really need)
+app/chroma_db/
+web_scrapping/.ipynb_checkpoints/
+
+# Caches
+*.cache/.env
+
+
