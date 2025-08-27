@@ -21,7 +21,20 @@ if not DB_PATH.exists():
     if alt_path.exists():
         DB_PATH = alt_path
 
+# After resolving DB_PATH
 print(f"🔗 Using SQLite DB at: {DB_PATH}")
+if not DB_PATH.exists():
+    print("⚠️ DB file not found! Path resolution failed.")
+else:
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = cursor.fetchall()
+            print(f"📋 Tables in DB: {tables}")
+    except Exception as e:
+        print(f"❌ DB inspection error: {e}")
+
 
 # 🔹 Initialize Groq client
 client_sql = Groq()
