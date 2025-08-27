@@ -3,7 +3,7 @@ from faq import ingest_faq_data, faq_chain
 from sql import sql_chain
 from smalltalk import talk
 from pathlib import Path
-from router import router
+from router import route_query  # Import the safer routing function
 
 # Cache the router initialization to prevent re-initialization on every app reload
 @st.cache_resource
@@ -12,25 +12,16 @@ def initialize_components():
     # Load FAQ data
     faqs_path = Path(__file__).parent / "resources/faq_data.csv"
     ingest_faq_data(faqs_path)
-    
-    # The router should be ready from router.py
-    # Make a test call to ensure it's working
-    try:
-        test_result = router("hello")
-        print(f"Router test successful: {test_result.name if test_result else 'No route'}")
-    except Exception as e:
-        print(f"Router test failed: {e}")
-    
-    return router
+    return True
 
 # Initialize components
-router = initialize_components()
+initialize_components()
 
 # Routing Function
 def ask(query: str) -> str:
     """Route the query to appropriate handler"""
     try:
-        route = router(query).name
+        route = route_query(query)  # Use the safer routing function
         
         if route == 'faq':
             return faq_chain(query)
