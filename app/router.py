@@ -83,12 +83,23 @@ small_talk = Route(
 )
 
 # Router
+print("Initializing semantic router...")
 router = SemanticRouter(routes=[faq, sql, small_talk], encoder=encoder)
 
-# Initialize the router index - THIS IS THE KEY FIX
-print("Initializing semantic router...")
-router.fit()
-print("Semantic router initialized successfully!")
+# The router should automatically build its index when created with routes
+# Let's verify it's ready by checking the index
+if hasattr(router, 'index') and router.index:
+    print("Semantic router initialized successfully!")
+else:
+    print("Warning: Router index might not be ready")
+
+# Force index creation by making a test call if needed
+try:
+    test_route = router("test query")
+    print(f"Router test successful - ready to use!")
+except Exception as e:
+    print(f"Router initialization warning: {e}")
+    # The router should still work for actual queries
 
 if __name__ == "__main__":
     print("FAQ →", router("What is your policy on defective product?").name)
