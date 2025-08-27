@@ -10,7 +10,7 @@ faqs_path = Path(__file__).parent / "resources/faq_data.csv"
 ingest_faq_data(faqs_path)
 
 # Routing Function
-def ask(query):
+def ask(query: str) -> str:
     route = router(query).name
     if route == 'faq':
         return faq_chain(query)
@@ -19,7 +19,7 @@ def ask(query):
     elif route == 'small-talk':
         return talk(query)
     else:
-        return f"Route '{route}' not implemented yet"
+        return f"❌ Route '{route}' not implemented yet"
 
 # Streamlit UI
 st.title("🛒 E-commerce Chatbot")
