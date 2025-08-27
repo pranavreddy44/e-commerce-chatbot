@@ -80,7 +80,7 @@ small_talk = Route(
     ]
 )
 
-router = RouteLayer(routes=[faq, sql, small_talk], encoder=encoder)
+router = SemanticRouter(routes=[faq, sql, small_talk], encoder=encoder)
 
 if __name__ == "__main__":
     print(router("What is your policy on defective product?").name)
