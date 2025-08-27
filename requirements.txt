@@ -4,7 +4,6 @@ pandasql
 python-dotenv
 groq
 semantic-router[local]
-chromadb
-sentence_transformers
-
 pysqlite3-binary
+chromadb
+sentence-transformers
