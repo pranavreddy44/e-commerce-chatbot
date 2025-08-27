@@ -2,10 +2,12 @@ from semantic_router import Route
 from semantic_router.routers import SemanticRouter
 from semantic_router.encoders import HuggingFaceEncoder
 
+# Load encoder
 encoder = HuggingFaceEncoder(
     name="sentence-transformers/all-MiniLM-L6-v2"
 )
 
+# FAQ Route
 faq = Route(
     name='faq',
     utterances=[
@@ -14,7 +16,6 @@ faq = Route(
         "How can I track my order?",
         "What payment methods are accepted?",
         "How long does it take to process a refund?",
-        # Added broader Flipkart-style FAQs
         "What are the delivery charges?",
         "When will my order be delivered?",
         "Do you offer no-cost EMI?",
@@ -30,9 +31,11 @@ faq = Route(
         "Do you provide open-box delivery?",
         "Do you ship internationally?",
         "How do I apply a promo code?",
+        "What is your policy on defective product?",
     ]
 )
 
+# SQL/Product Query Route
 sql = Route(
     name='sql',
     utterances=[
@@ -41,7 +44,6 @@ sql = Route(
         "Do you have formal shoes in size 9?",
         "Are there any Puma shoes on sale?",
         "What is the price of puma running shoes?",
-        # Added diverse ecommerce product queries
         "Show me adidas sneakers below 2500 with rating above 4.",
         "Top 5 nike running shoes by rating",
         "Shoes with discount more than 30 percent",
@@ -52,10 +54,11 @@ sql = Route(
         "Reebok shoes between 2000 and 4000",
         "Kids shoes with rating over 4.2",
         "Show 3 Puma shoes with highest discount",
+        "Pink Puma shoes in price range 1000 to 5000",
     ]
 )
 
-# created a the route for small talk and added it in the routee layer
+# Small Talk Route
 small_talk = Route(
     name='small-talk',
     utterances=[
@@ -64,7 +67,6 @@ small_talk = Route(
         "Are you a robot?",
         "What are you?",
         "What do you do?",
-        # Added common chit-chat variations
         "Hi",
         "Hello",
         "Hey there",
@@ -80,9 +82,10 @@ small_talk = Route(
     ]
 )
 
+# Router
 router = SemanticRouter(routes=[faq, sql, small_talk], encoder=encoder)
 
 if __name__ == "__main__":
-    print(router("What is your policy on defective product?").name)
-    print(router("Pink Puma shoes in price range 5000 to 1000").name)
-    print(router("How are you?").name)
+    print("FAQ →", router("What is your policy on defective product?").name)
+    print("SQL →", router("Pink Puma shoes in price range 1000 to 5000").name)
+    print("Small Talk →", router("How are you?").name)
