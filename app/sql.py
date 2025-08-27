@@ -7,75 +7,22 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pandas import DataFrame
 
-# 🔹 Load env variables
 load_dotenv()
-GROQ_MODEL = os.getenv("GROQ_MODEL")
-DEFAULT_LIMIT = int(os.getenv("DEFAULT_LIMIT", "10"))
 
-# ✅ Resolve correct db.sqlite (using cwd for deployment reliability)
-BASE_DIR = Path(os.getcwd())
-DB_PATH = BASE_DIR / "db.sqlite"
+GROQ_MODEL = os.getenv('GROQ_MODEL')
+# Limit rows sent to LLM to keep requests small
+DEFAULT_LIMIT = int(os.getenv('DEFAULT_LIMIT', '10'))
 
-# Logging after resolving DB_PATH
-print(f"🔗 Resolved DB_PATH: {DB_PATH}")
-if not DB_PATH.exists():
-    print("⚠️ DB file not found! Path resolution failed.")
-else:
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = cursor.fetchall()
-            print(f"📋 Tables in DB: {tables}")
-    except Exception as e:
-        print(f"❌ DB inspection error: {e}")
+db_path = Path(__file__).parent / "db.sqlite"
 
-def init_db():
-    if not DB_PATH.exists():
-        print("⚠️ DB file missing. Creating new one.")
-    try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            # Create table if not exists
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS product (
-                    product_link TEXT,
-                    title TEXT,
-                    brand TEXT,
-                    price INTEGER,
-                    discount FLOAT,
-                    avg_rating FLOAT,
-                    total_ratings INTEGER
-                );
-            """)
-            conn.commit()
-            # Check if empty and insert sample data
-            cursor.execute("SELECT COUNT(*) FROM product")
-            if cursor.fetchone()[0] == 0:
-                print("📝 DB is empty. Inserting sample data.")
-                sample_data = [
-                    ('https://example.com/nike1', 'Nike Air Max', 'Nike', 5000, 0.2, 4.5, 150),
-                    ('https://example.com/nike2', 'Nike Running Shoe', 'Nike', 3000, 0.3, 4.2, 200),
-                    ('https://example.com/adidas1', 'Adidas Ultraboost', 'Adidas', 4000, 0.1, 4.7, 100),
-                    # Add more samples as needed for testing
-                ]
-                cursor.executemany("INSERT INTO product VALUES (?, ?, ?, ?, ?, ?, ?)", sample_data)
-                conn.commit()
-            print("✅ DB initialized with 'product' table.")
-    except Exception as e:
-        print(f"❌ DB init error: {e}")
-
-# Call on startup
-init_db()
-
-# 🔹 Initialize Groq client
 client_sql = Groq()
 
-# ---------- SQL Prompt ----------
-sql_prompt = f"""
+sql_prompt = """
 You are an expert SQL analyst. Your task is to generate a single, valid SQL query based on a user's question about products.
+
 <schema> 
 table: product 
+
 fields: 
 product_link - string (hyperlink to product)
 title - string (name of the product)
@@ -85,96 +32,131 @@ discount - float (discount on the product. 10 percent discount is represented as
 avg_rating - float (average rating of the product. Range 0-5, 5 is the highest.)
 total_ratings - integer (total number of ratings for the product)
 </schema>
+
 ---
 Here are the rules you MUST follow:
-1. The SELECT clause must always be `SELECT *`.
-2. **Discounts:** When a user mentions a percentage like "20 percent" or "20%", convert it to decimal (e.g., `discount > 0.2`).
-3. **Brands:** For brand names, make the search case-insensitive and flexible. Use `LOWER(brand) LIKE '%brandname%'`.
-4. **No Brand:** If the user's question does NOT mention a brand, do NOT include brand condition in WHERE.
-5. Always enclose the final query in <SQL></SQL> tags.
-6. Always include a LIMIT {DEFAULT_LIMIT} clause unless the question explicitly asks for ALL results.
+1.  The SELECT clause must always be `SELECT *`.
+2.  **Discounts:** When a user mentions a percentage like "20 percent" or "20%", you must convert it to a decimal in the query (e.g., `discount > 0.2`).
+3.  **Brands:** For brand names, make the search case-insensitive and flexible. Use `LOWER(brand) LIKE '%brandname%'` (e.g., `LOWER(brand) LIKE '%nike%'`).
+4.  **No Brand:** If the user's question does NOT mention a brand (e.g., "show me shoes"), do NOT include a brand condition in the WHERE clause.
+5.  Always enclose the final query in `<SQL></SQL>` tags.
+6.  Prefer including a LIMIT clause (e.g., LIMIT {DEFAULT_LIMIT}) to keep results concise.
+
 ---
-Examples:
+Here are some examples:
+
 Question: show me adidas shoes under rs 3000 with a rating above 4.
-<SQL>SELECT * FROM product WHERE LOWER(brand) LIKE '%adidas%' AND price < 3000 AND avg_rating > 4.0 LIMIT {DEFAULT_LIMIT};</SQL>
+<SQL>SELECT * FROM product WHERE LOWER(brand) LIKE '%adidas%' AND price < 3000 AND avg_rating > 4.0;</SQL>
+
 Question: give shoes that have rating more than 4.2 and discount more than 20 percent
-<SQL>SELECT * FROM product WHERE avg_rating > 4.2 AND discount > 0.2 LIMIT {DEFAULT_LIMIT};</SQL>
+<SQL>SELECT * FROM product WHERE avg_rating > 4.2 AND discount > 0.2;</SQL>
+
 Question: nike shoes
-<SQL>SELECT * FROM product WHERE LOWER(brand) LIKE '%nike%' LIMIT {DEFAULT_LIMIT};</SQL>
+<SQL>SELECT * FROM product WHERE LOWER(brand) LIKE '%nike%';</SQL>
 ---
-Now, generate the SQL query for the user's question below.
+Now, generate the SQL query for the user's question below.  
+""".format(DEFAULT_LIMIT=DEFAULT_LIMIT)
+
+
+
+comprehension_prompt = """You are an expert in understanding the context of the question and replying based on the data pertaining to the question provided. You will be provided with Question: and Data:. The data will be in the form of an array or a dataframe or dict. Reply based on only the data provided as Data for answering the question asked as Question. Do not write anything like 'Based on the data' or any other technical words. Just a plain simple natural language response.
+The Data would always be in context to the question asked. For example is the question is “What is the average rating?” and data is “4.3”, then answer should be “The average rating for the product is 4.3”. So make sure the response is curated with the question and data. Make sure to note the column names to have some context, if needed, for your response.
+There can also be cases where you are given an entire dataframe in the Data: field. Always remember that the data field contains the answer of the question asked. All you need to do is to always reply in the following format when asked about a product: 
+Produt title, price in indian rupees, discount, and rating, and then product link. Take care that all the products are listed in list format, one line after the other. Not as a paragraph.
+For example:
+1. Campus Women Running Shoes: Rs. 1104 (35 percent off), Rating: 4.4 <link>
+2. Campus Women Running Shoes: Rs. 1104 (35 percent off), Rating: 4.4 <link>
+3. Campus Women Running Shoes: Rs. 1104 (35 percent off), Rating: 4.4 <link>
+
 """
 
-# ---------- Comprehension Prompt ----------
-comprehension_prompt = """
-You are an expert in understanding the context of the question and replying based on the data provided. 
-Always reply in simple natural language, not technical terms.
-When asked about products, always list them like this:
-1. Product title: Rs. PRICE (X percent off), Rating: Y <link>
-2. Product title: Rs. PRICE (X percent off), Rating: Y <link>
-"""
 
-# ---------- Functions ----------
-def generate_sql_query(question: str) -> str:
+def generate_sql_query(question):
     chat_completion = client_sql.chat.completions.create(
         messages=[
-            {"role": "system", "content": sql_prompt},
-            {"role": "user", "content": question},
+            {
+                "role": "system",
+                "content": sql_prompt,
+            },
+            {
+                "role": "user",
+                "content": question,
+            }
         ],
-        model=GROQ_MODEL,
+        model=os.environ['GROQ_MODEL'],
         temperature=0.2,
-        max_tokens=512,
+        max_tokens=512
     )
+
     return chat_completion.choices[0].message.content
 
-def run_query(query: str):
-    if query.strip().upper().startswith("SELECT"):
-        try:
-            with sqlite3.connect(DB_PATH) as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1 FROM product LIMIT 1")  # Quick table check
-                df = pd.read_sql_query(query, conn)
-                return df
-        except sqlite3.OperationalError as e:
-            if "no such table" in str(e):
-                print("❌ Table 'product' not found.")
-                return None
-        except Exception as e:
-            print(f"❌ SQL Execution Error: {e}")
-            return None
+
+
+def run_query(query):
+    if query.strip().upper().startswith('SELECT'):
+        with sqlite3.connect(db_path) as conn:
+            df = pd.read_sql_query(query, conn)
+            return df
+
 
 def data_comprehension(question, context):
     chat_completion = client_sql.chat.completions.create(
         messages=[
-            {"role": "system", "content": comprehension_prompt},
-            {"role": "user", "content": f"QUESTION: {question}. DATA: {context}"},
+            {
+                "role": "system",
+                "content": comprehension_prompt,
+            },
+            {
+                "role": "user",
+                "content": f"QUESTION: {question}. DATA: {context}",
+            }
         ],
-        model=GROQ_MODEL,
+        model=os.environ['GROQ_MODEL'],
         temperature=0.2,
-        max_tokens=768,
+        max_tokens=768
     )
+
     return chat_completion.choices[0].message.content
 
-def sql_chain(question: str):
+
+
+def sql_chain(question):
     sql_query = generate_sql_query(question)
-    matches = re.findall(r"<SQL>(.*?)</SQL>", sql_query, re.DOTALL)
-    if not matches:
-        return "❌ Sorry, LLM could not generate a SQL query."
-    final_query = matches[0].strip()
-    print(f"📝 Generated SQL: {final_query}")
-    response = run_query(final_query)
-    if response is None or response.empty:
-        return "❌ Sorry, no results found."
-    # Select only useful columns
+    pattern = "<SQL>(.*?)</SQL>"
+    matches = re.findall(pattern, sql_query, re.DOTALL)
+
+    if len(matches) == 0:
+        return "Sorry, LLM is not able to generate a query for your question"
+
+    print(matches[0].strip())
+
+    response = run_query(matches[0].strip())
+    if response is None:
+        return "Sorry, there was a problem executing SQL query"
+
+    # Reduce payload: select essential columns and cap rows
     essential_columns = [
         col for col in ["title", "price", "discount", "avg_rating", "product_link"]
         if col in response.columns
     ]
-    response_small = response[essential_columns].head(DEFAULT_LIMIT)
-    context = response_small.to_dict(orient="records")
-    return data_comprehension(question, context)
+    if essential_columns:
+        response_small = response[essential_columns]
+    else:
+        response_small = response
+    response_small = response_small.head(DEFAULT_LIMIT)
 
-# ---------- Main ----------
+    context = response_small.to_dict(orient='records')
+
+    answer = data_comprehension(question, context)
+    return answer
+
+
 if __name__ == "__main__":
-    question = "Give me top 5 nike shoes"
-    print(sql_chain(question))
+    # question = "All shoes with rating higher than 4.5 and total number of reviews greater than 500"
+    # sql_query = generate_sql_query(question)
+    # print(sql_query)
+    question = "Show top 3 shoes in descending order of rating"
+    # question = "Show me 3 running shoes for woman"
+    # question = "sfsdfsddsfsf"
+    answer = sql_chain(question)
+    print(answer)
