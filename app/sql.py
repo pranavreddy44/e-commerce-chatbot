@@ -7,19 +7,26 @@ from pathlib import Path
 from dotenv import load_dotenv
 from pandas import DataFrame
 
+# 🔹 Load env variables
 load_dotenv()
 
 GROQ_MODEL = os.getenv("GROQ_MODEL")
 DEFAULT_LIMIT = int(os.getenv("DEFAULT_LIMIT", "10"))
 
-# ✅ Resolve absolute path for db.sqlite (works in local + deployment)
+# ✅ Resolve correct db.sqlite (check both root & app dir)
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "db.sqlite"
+if not DB_PATH.exists():
+    alt_path = BASE_DIR.parent / "db.sqlite"
+    if alt_path.exists():
+        DB_PATH = alt_path
 
 print(f"🔗 Using SQLite DB at: {DB_PATH}")
 
+# 🔹 Initialize Groq client
 client_sql = Groq()
 
+# ---------- SQL Prompt ----------
 sql_prompt = f"""
 You are an expert SQL analyst. Your task is to generate a single, valid SQL query based on a user's question about products.
 
@@ -39,9 +46,9 @@ total_ratings - integer (total number of ratings for the product)
 ---
 Here are the rules you MUST follow:
 1. The SELECT clause must always be `SELECT *`.
-2. **Discounts:** When a user mentions a percentage like "20 percent" or "20%", you must convert it to a decimal in the query (e.g., `discount > 0.2`).
+2. **Discounts:** When a user mentions a percentage like "20 percent" or "20%", convert it to decimal (e.g., `discount > 0.2`).
 3. **Brands:** For brand names, make the search case-insensitive and flexible. Use `LOWER(brand) LIKE '%brandname%'`.
-4. **No Brand:** If the user's question does NOT mention a brand, do NOT include a brand condition in the WHERE clause.
+4. **No Brand:** If the user's question does NOT mention a brand, do NOT include brand condition in WHERE.
 5. Always enclose the final query in <SQL></SQL> tags.
 6. Always include a LIMIT {DEFAULT_LIMIT} clause unless the question explicitly asks for ALL results.
 ---
@@ -59,6 +66,7 @@ Question: nike shoes
 Now, generate the SQL query for the user's question below.
 """
 
+# ---------- Comprehension Prompt ----------
 comprehension_prompt = """
 You are an expert in understanding the context of the question and replying based on the data provided. 
 Always reply in simple natural language, not technical terms.
@@ -68,6 +76,7 @@ When asked about products, always list them like this:
 2. Product title: Rs. PRICE (X percent off), Rating: Y <link>
 """
 
+# ---------- Functions ----------
 def generate_sql_query(question: str) -> str:
     chat_completion = client_sql.chat.completions.create(
         messages=[
@@ -80,6 +89,7 @@ def generate_sql_query(question: str) -> str:
     )
     return chat_completion.choices[0].message.content
 
+
 def run_query(query: str):
     if query.strip().upper().startswith("SELECT"):
         try:
@@ -89,6 +99,7 @@ def run_query(query: str):
         except Exception as e:
             print(f"❌ SQL Execution Error: {e}")
             return None
+
 
 def data_comprehension(question, context):
     chat_completion = client_sql.chat.completions.create(
@@ -101,6 +112,7 @@ def data_comprehension(question, context):
         max_tokens=768,
     )
     return chat_completion.choices[0].message.content
+
 
 def sql_chain(question: str):
     sql_query = generate_sql_query(question)
@@ -126,6 +138,8 @@ def sql_chain(question: str):
 
     return data_comprehension(question, context)
 
+
+# ---------- Main ----------
 if __name__ == "__main__":
     question = "Give me top 5 nike shoes"
     print(sql_chain(question))
