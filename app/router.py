@@ -86,6 +86,14 @@ try:
     # Router
     router = SemanticRouter(routes=[faq, sql, small_talk], encoder=encoder)
     
+    # Build the index
+    try:
+        router.build()
+        print("Semantic router index built successfully")
+    except Exception as e:
+        print(f"Failed to build semantic router index: {e}")
+        raise ImportError("Semantic router build failed")
+    
 except ImportError:
     # Fallback to simple keyword-based router if semantic-router fails
     def simple_router(query):
@@ -139,6 +147,7 @@ except ImportError:
             return type('Route', (), {'name': route_name})()
     
     router = SimpleRouter()
+    print("Using fallback keyword-based router")
 
 if __name__ == "__main__":
     print("FAQ →", router("What is your policy on defective product?").name)
