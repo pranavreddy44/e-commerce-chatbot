@@ -13,10 +13,13 @@ def initialize_components():
     faqs_path = Path(__file__).parent / "resources/faq_data.csv"
     ingest_faq_data(faqs_path)
     
-    # Verify router is ready (should be from router.py, but double-check)
-    if not router.index.is_ready():
-        print("Router index not ready, fitting now...")
-        router.fit()
+    # The router should be ready from router.py
+    # Make a test call to ensure it's working
+    try:
+        test_result = router("hello")
+        print(f"Router test successful: {test_result.name if test_result else 'No route'}")
+    except Exception as e:
+        print(f"Router test failed: {e}")
     
     return router
 
